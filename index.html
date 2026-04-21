@@ -2,10 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="X-UA-Compatible" content="IE=edge" />
-<meta name="show-algo-dropdown" content="false"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-
+<meta name="show-algo-dropdown" content="false"/>
 <title>SHA-256 Calculator</title>
 <style>
   html, body { height: 100%; margin: 0; padding: 0; }
@@ -69,239 +67,16 @@
 </div>
 
 <script>
-/**
- * ============================
- * Pure JS SHA (IE11 compatible)
- * ============================
- */
-var SHAEngine = (function() {
-  function toBytes(buf) {
-    var u8 = new Uint8Array(buf);
-    var arr = [];
-    for (var i = 0; i < u8.length; i++) arr.push(u8[i]);
-    return arr;
-  }
+const HASH_ALGORITHMS = { SHA1: "SHA-1", SHA256: "SHA-256", SHA512: "SHA-512" };
+let currentAlgo = HASH_ALGORITHMS.SHA256;
 
-  function toHex(arr) {
-    var hex = '';
-    for (var i = 0; i < arr.length; i++) hex += ('00' + arr[i].toString(16)).slice(-2);
-    return hex;
-  }
-
-  function rr(v, n) { return (v >>> n) | (v << (32 - n)); }
-
-  // SHA-1
-  function sha1(buf) {
-    var bytes = toBytes(buf);
-    var len = bytes.length * 8;
-    bytes.push(0x80);
-    while (bytes.length % 64 !== 56) bytes.push(0);
-    bytes.push(0, 0, 0, 0);
-    bytes.push((len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff);
-
-    var h0 = 0x67452301, h1 = 0xEFCDAB89, h2 = 0x98BADCFE, h3 = 0x10325476, h4 = 0xC3D2E1F0;
-
-    for (var off = 0; off < bytes.length; off += 64) {
-      var w = [];
-      for (var i = 0; i < 16; i++) w[i] = (bytes[off + i*4] << 24) | (bytes[off + i*4+1] << 16) | (bytes[off + i*4+2] << 8) | bytes[off + i*4+3];
-      for (var i = 16; i < 80; i++) { var t = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16]; w[i] = (t << 1) | (t >>> 31); }
-
-      var a = h0, b = h1, c = h2, d = h3, e = h4;
-      for (var i = 0; i < 80; i++) {
-        var f, k;
-        if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5A827999; }
-        else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
-        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
-        else { f = b ^ c ^ d; k = 0xCA62C1D6; }
-        var tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) | 0;
-        e = d; d = c; c = (b << 30) | (b >>> 2); b = a; a = tmp;
-      }
-      h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0; h4 = (h4 + e) | 0;
-    }
-
-    var out = [];
-    var vals = [h0, h1, h2, h3, h4];
-    for (var i = 0; i < 5; i++) out.push((vals[i] >>> 24) & 0xff, (vals[i] >>> 16) & 0xff, (vals[i] >>> 8) & 0xff, vals[i] & 0xff);
-    return toHex(out);
-  }
-
-  // SHA-256
-  var K256 = [
-    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
-    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
-    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
-    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
-    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
-    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
-    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
-    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
-  ];
-
-  function sha256(buf) {
-    var bytes = toBytes(buf);
-    var len = bytes.length * 8;
-    bytes.push(0x80);
-    while (bytes.length % 64 !== 56) bytes.push(0);
-    bytes.push(0, 0, 0, 0);
-    bytes.push((len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff);
-
-    var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
-
-    for (var off = 0; off < bytes.length; off += 64) {
-      var w = [];
-      for (var i = 0; i < 16; i++) w[i] = (bytes[off+i*4]<<24)|(bytes[off+i*4+1]<<16)|(bytes[off+i*4+2]<<8)|bytes[off+i*4+3];
-      for (var i = 16; i < 64; i++) {
-        var s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15]>>>3);
-        var s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2]>>>10);
-        w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
-      }
-
-      var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
-      for (var i = 0; i < 64; i++) {
-        var S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
-        var ch = (e & f) ^ ((~e) & g);
-        var t1 = (h + S1 + ch + K256[i] + w[i]) | 0;
-        var S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
-        var maj = (a & b) ^ (a & c) ^ (b & c);
-        var t2 = (S0 + maj) | 0;
-        h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
-      }
-      H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0;
-      H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
-    }
-
-    var out = [];
-    for (var i = 0; i < 8; i++) out.push((H[i]>>>24)&0xff,(H[i]>>>16)&0xff,(H[i]>>>8)&0xff,H[i]&0xff);
-    return toHex(out);
-  }
-
-  // SHA-512
-  function Long(hi, lo) { this.h = hi|0; this.l = lo|0; }
-  function add64(a, b) {
-    var lo = (a.l + b.l) | 0;
-    var hi = (a.h + b.h + ((lo >>> 0) < (a.l >>> 0) ? 1 : 0)) | 0;
-    return new Long(hi, lo);
-  }
-  function rr64(x, n) {
-    if (n < 32) return new Long((x.h >>> n) | (x.l << (32-n)), (x.l >>> n) | (x.h << (32-n)));
-    return new Long((x.l >>> (n-32)) | (x.h << (64-n)), (x.h >>> (n-32)) | (x.l << (64-n)));
-  }
-  function shr64(x, n) {
-    if (n < 32) return new Long(x.h >>> n, (x.l >>> n) | (x.h << (32-n)));
-    return new Long(0, x.h >>> (n-32));
-  }
-  function xor64(a, b) { return new Long(a.h ^ b.h, a.l ^ b.l); }
-  function and64(a, b) { return new Long(a.h & b.h, a.l & b.l); }
-  function not64(a) { return new Long(~a.h, ~a.l); }
-
-  var K512 = [
-    [0x428a2f98,0xd728ae22],[0x71374491,0x23ef65cd],[0xb5c0fbcf,0xec4d3b2f],[0xe9b5dba5,0x8189dbbc],
-    [0x3956c25b,0xf348b538],[0x59f111f1,0xb605d019],[0x923f82a4,0xaf194f9b],[0xab1c5ed5,0xda6d8118],
-    [0xd807aa98,0xa3030242],[0x12835b01,0x45706fbe],[0x243185be,0x4ee4b28c],[0x550c7dc3,0xd5ffb4e2],
-    [0x72be5d74,0xf27b896f],[0x80deb1fe,0x3b1696b1],[0x9bdc06a7,0x25c71235],[0xc19bf174,0xcf692694],
-    [0xe49b69c1,0x9ef14ad2],[0xefbe4786,0x384f25e3],[0x0fc19dc6,0x8b8cd5b5],[0x240ca1cc,0x77ac9c65],
-    [0x2de92c6f,0x592b0275],[0x4a7484aa,0x6ea6e483],[0x5cb0a9dc,0xbd41fbd4],[0x76f988da,0x831153b5],
-    [0x983e5152,0xee66dfab],[0xa831c66d,0x2db43210],[0xb00327c8,0x98fb213f],[0xbf597fc7,0xbeef0ee4],
-    [0xc6e00bf3,0x3da88fc2],[0xd5a79147,0x930aa725],[0x06ca6351,0xe003826f],[0x14292967,0x0a0e6e70],
-    [0x27b70a85,0x46d22ffc],[0x2e1b2138,0x5c26c926],[0x4d2c6dfc,0x5ac42aed],[0x53380d13,0x9d95b3df],
-    [0x650a7354,0x8baf63de],[0x766a0abb,0x3c77b2a8],[0x81c2c92e,0x47edaee6],[0x92722c85,0x1482353b],
-    [0xa2bfe8a1,0x4cf10364],[0xa81a664b,0xbc423001],[0xc24b8b70,0xd0f89791],[0xc76c51a3,0x0654be30],
-    [0xd192e819,0xd6ef5218],[0xd6990624,0x5565a910],[0xf40e3585,0x5771202a],[0x106aa070,0x32bbd1b8],
-    [0x19a4c116,0xb8d2d0c8],[0x1e376c08,0x5141ab53],[0x2748774c,0xdf8eeb99],[0x34b0bcb5,0xe19b48a8],
-    [0x391c0cb3,0xc5c95a63],[0x4ed8aa4a,0xe3418acb],[0x5b9cca4f,0x7763e373],[0x682e6ff3,0xd6b2b8a3],
-    [0x748f82ee,0x5defb2fc],[0x78a5636f,0x43172f60],[0x84c87814,0xa1f0ab72],[0x8cc70208,0x1a6439ec],
-    [0x90befffa,0x23631e28],[0xa4506ceb,0xde82bde9],[0xbef9a3f7,0xb2c67915],[0xc67178f2,0xe372532b],
-    [0xca273ece,0xea26619c],[0xd186b8c7,0x21c0c207],[0xeada7dd6,0xcde0eb1e],[0xf57d4f7f,0xee6ed178],
-    [0x06f067aa,0x72176fba],[0x0a637dc5,0xa2c898a6],[0x113f9804,0xbef90dae],[0x1b710b35,0x131c471b],
-    [0x28db77f5,0x23047d84],[0x32caab7b,0x40c72493],[0x3c9ebe0a,0x15c9bebc],[0x431d67c4,0x9c100d4c],
-    [0x4cc5d4be,0xcb3e42b6],[0x597f299c,0xfc657e2a],[0x5fcb6fab,0x3ad6faec],[0x6c44198c,0x4a475817]
-  ];
-  var K512L = [];
-  for (var ki = 0; ki < 80; ki++) K512L.push(new Long(K512[ki][0], K512[ki][1]));
-
-  function sha512(buf) {
-    var bytes = toBytes(buf);
-    var bitLen = bytes.length * 8;
-    bytes.push(0x80);
-    while (bytes.length % 128 !== 112) bytes.push(0);
-    for (var p = 0; p < 12; p++) bytes.push(0);
-    bytes.push((bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
-
-    var H = [
-      new Long(0x6a09e667,0xf3bcc908), new Long(0xbb67ae85,0x84caa73b),
-      new Long(0x3c6ef372,0xfe94f82b), new Long(0xa54ff53a,0x5f1d36f1),
-      new Long(0x510e527f,0xade682d1), new Long(0x9b05688c,0x2b3e6c1f),
-      new Long(0x1f83d9ab,0xfb41bd6b), new Long(0x5be0cd19,0x137e2179)
-    ];
-
-    for (var off = 0; off < bytes.length; off += 128) {
-      var w = [];
-      for (var i = 0; i < 16; i++) {
-        var hi = (bytes[off+i*8]<<24)|(bytes[off+i*8+1]<<16)|(bytes[off+i*8+2]<<8)|bytes[off+i*8+3];
-        var lo = (bytes[off+i*8+4]<<24)|(bytes[off+i*8+5]<<16)|(bytes[off+i*8+6]<<8)|bytes[off+i*8+7];
-        w[i] = new Long(hi, lo);
-      }
-      for (var i = 16; i < 80; i++) {
-        var s0 = xor64(xor64(rr64(w[i-15],1), rr64(w[i-15],8)), shr64(w[i-15],7));
-        var s1 = xor64(xor64(rr64(w[i-2],19), rr64(w[i-2],61)), shr64(w[i-2],6));
-        w[i] = add64(add64(add64(w[i-16], s0), w[i-7]), s1);
-      }
-
-      var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
-      for (var i = 0; i < 80; i++) {
-        var S1 = xor64(xor64(rr64(e,14), rr64(e,18)), rr64(e,41));
-        var ch = xor64(and64(e,f), and64(not64(e),g));
-        var t1 = add64(add64(add64(add64(h, S1), ch), K512L[i]), w[i]);
-        var S0 = xor64(xor64(rr64(a,28), rr64(a,34)), rr64(a,39));
-        var maj = xor64(xor64(and64(a,b), and64(a,c)), and64(b,c));
-        var t2 = add64(S0, maj);
-        h=g; g=f; f=e; e=add64(d,t1); d=c; c=b; b=a; a=add64(t1,t2);
-      }
-      H[0]=add64(H[0],a); H[1]=add64(H[1],b); H[2]=add64(H[2],c); H[3]=add64(H[3],d);
-      H[4]=add64(H[4],e); H[5]=add64(H[5],f); H[6]=add64(H[6],g); H[7]=add64(H[7],h);
-    }
-
-    var out = [];
-    for (var i = 0; i < 8; i++) out.push((H[i].h>>>24)&0xff,(H[i].h>>>16)&0xff,(H[i].h>>>8)&0xff,H[i].h&0xff,(H[i].l>>>24)&0xff,(H[i].l>>>16)&0xff,(H[i].l>>>8)&0xff,H[i].l&0xff);
-    return toHex(out);
-  }
-
-  return {
-    digest: function(algo, buf) {
-      if (algo === 'SHA-1') return sha1(buf);
-      if (algo === 'SHA-256') return sha256(buf);
-      if (algo === 'SHA-512') return sha512(buf);
-      return '';
-    }
-  };
-})();
-
-/**
- * ============================
- * Developer Config (ENUM-like)
- * ============================
- */
-var HASH_ALGORITHMS = {
-  SHA1: "SHA-1",
-  SHA256: "SHA-256",
-  SHA512: "SHA-512"
-};
-
-var currentAlgo = HASH_ALGORITHMS.SHA256;
-
-var showDropdown = document.querySelector('meta[name="show-algo-dropdown"]').content === 'true';
-var algoSection = document.getElementById('algoSection');
+const showDropdown = document.querySelector('meta[name="show-algo-dropdown"]').content === 'true';
+const algoSection = document.getElementById('algoSection');
 if (!showDropdown) algoSection.style.display = 'none';
 
-/**
- * Populate dropdown
- */
-var algoSelect = document.getElementById("algoSelect");
-var algoKeys = Object.keys(HASH_ALGORITHMS);
-for (var i = 0; i < algoKeys.length; i++) {
-  var key = algoKeys[i];
-  var val = HASH_ALGORITHMS[key];
-  var opt = document.createElement("option");
+const algoSelect = document.getElementById("algoSelect");
+for (const [key, val] of Object.entries(HASH_ALGORITHMS)) {
+  const opt = document.createElement("option");
   opt.value = val;
   opt.textContent = key;
   if (val === currentAlgo) opt.selected = true;
@@ -309,83 +84,59 @@ for (var i = 0; i < algoKeys.length; i++) {
 }
 
 function updateLabels() {
-  var name = algoSelect.options[algoSelect.selectedIndex].text;
+  const name = algoSelect.options[algoSelect.selectedIndex].text;
   document.getElementById('expectedLabel').textContent = 'Expected ' + name;
   document.getElementById('computedLabel').textContent = 'Computed ' + name;
   document.title = name + ' Calculator';
   document.getElementById('pageHeading').textContent = name + ' Calculator';
 }
 
-algoSelect.addEventListener("change", function(e) {
+algoSelect.addEventListener("change", e => {
   currentAlgo = e.target.value;
   updateLabels();
   document.getElementById('resetBtn').click();
 });
 
-/**
- * UI Elements
- */
-var dropzone = document.getElementById("dropzone");
-var fileInput = document.getElementById("fileInput");
-var hashOutput = document.getElementById("hashOutput");
-var result = document.getElementById("result");
-var expectedHashInput = document.getElementById("expectedHash");
-var verifyBtn = document.getElementById('verifyBtn');
-var resetBtn = document.getElementById('resetBtn');
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+const hashOutput = document.getElementById("hashOutput");
+const resultEl = document.getElementById("result");
+const expectedHashInput = document.getElementById("expectedHash");
+const verifyBtn = document.getElementById('verifyBtn');
+const resetBtn = document.getElementById('resetBtn');
 
 verifyBtn.disabled = true;
 verifyBtn.style.opacity = '0.5';
 verifyBtn.style.cursor = 'not-allowed';
 
 function setResult(text, type) {
-  result.textContent = text || '';
+  resultEl.textContent = text || '';
   if (!text) {
-    result.className = 'result';
-    result.style.display = 'none';
+    resultEl.className = 'result';
+    resultEl.style.display = 'none';
   } else {
-    result.className = 'result ' + (type || '');
-    result.style.display = 'block';
+    resultEl.className = 'result ' + (type || '');
+    resultEl.style.display = 'block';
   }
 }
 
-var MAX_FILE_SIZE = 1024 * 1024 * 1024;
+const MAX_FILE_SIZE = 1024 * 1024 * 1024;
+let isCalculating = false;
+let calcSession = 0;
 
-var isCalculating = false;
-var activeReader = null;
-var calcSession = 0;
+expectedHashInput.addEventListener("keydown", e => { if (e.key === 'Enter') e.preventDefault(); });
 
-expectedHashInput.addEventListener("keydown", function(e) {
-  if (e.which === 13) e.preventDefault();
-});
-
-/**
- * Drag & Drop
- */
-dropzone.addEventListener("click", function() { fileInput.click(); });
-
-dropzone.addEventListener("dragover", function(e) {
-  e.preventDefault();
-  dropzone.className = 'dropzone dragover';
-});
-
-dropzone.addEventListener("dragleave", function() {
-  dropzone.className = 'dropzone';
-});
-
-dropzone.addEventListener("drop", function(e) {
+dropzone.addEventListener("click", () => fileInput.click());
+dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.className = 'dropzone dragover'; });
+dropzone.addEventListener("dragleave", () => { dropzone.className = 'dropzone'; });
+dropzone.addEventListener("drop", e => {
   e.preventDefault();
   dropzone.className = 'dropzone';
   handleFile(e.dataTransfer.files[0]);
 });
+fileInput.addEventListener("change", e => handleFile(e.target.files[0]));
 
-fileInput.addEventListener("change", function(e) {
-  handleFile(e.target.files[0]);
-});
-
-/**
- * Hash Calculation
- */
-function handleFile(file) {
+async function handleFile(file) {
   if (!file || isCalculating) return;
 
   if (file.size > MAX_FILE_SIZE) {
@@ -395,238 +146,67 @@ function handleFile(file) {
 
   isCalculating = true;
   calcSession++;
-  var mySession = calcSession;
+  const mySession = calcSession;
   dropzone.style.pointerEvents = 'none';
   dropzone.style.opacity = '0.5';
   expectedHashInput.value = '';
-  hashOutput.textContent = 'Calculating...';
-  setResult('\u23F3 Calculating hash, please hold on...', 'warning');
+  hashOutput.textContent = 'Reading file...';
+  setResult('\u23F3 Reading file...', 'warning');
   document.getElementById('fileName').textContent = file.name;
 
-  var chunkSize = 8 * 1024 * 1024;
-  var offset = 0;
-  var state = null;
-  var w256 = new Int32Array(64);
-  var w1 = new Int32Array(80);
+  try {
+    const CHUNK = 64 * 1024 * 1024;
+    let buffer;
 
-  function L(hi, lo) { this.h = hi|0; this.l = lo|0; }
-  function a64(a, b) { var lo = (a.l + b.l)|0; return new L((a.h + b.h + ((lo>>>0)<(a.l>>>0)?1:0))|0, lo); }
-  function r64(x, n) { if(n<32) return new L((x.h>>>n)|(x.l<<(32-n)),(x.l>>>n)|(x.h<<(32-n))); return new L((x.l>>>(n-32))|(x.h<<(64-n)),(x.h>>>(n-32))|(x.l<<(64-n))); }
-  function s64(x, n) { if(n<32) return new L(x.h>>>n,(x.l>>>n)|(x.h<<(32-n))); return new L(0,x.h>>>(n-32)); }
-  function x64(a, b) { return new L(a.h^b.h, a.l^b.l); }
-  function n64(a, b) { return new L(a.h&b.h, a.l&b.l); }
-  function inv64(a) { return new L(~a.h, ~a.l); }
-  var K5 = [[0x428a2f98,0xd728ae22],[0x71374491,0x23ef65cd],[0xb5c0fbcf,0xec4d3b2f],[0xe9b5dba5,0x8189dbbc],[0x3956c25b,0xf348b538],[0x59f111f1,0xb605d019],[0x923f82a4,0xaf194f9b],[0xab1c5ed5,0xda6d8118],[0xd807aa98,0xa3030242],[0x12835b01,0x45706fbe],[0x243185be,0x4ee4b28c],[0x550c7dc3,0xd5ffb4e2],[0x72be5d74,0xf27b896f],[0x80deb1fe,0x3b1696b1],[0x9bdc06a7,0x25c71235],[0xc19bf174,0xcf692694],[0xe49b69c1,0x9ef14ad2],[0xefbe4786,0x384f25e3],[0x0fc19dc6,0x8b8cd5b5],[0x240ca1cc,0x77ac9c65],[0x2de92c6f,0x592b0275],[0x4a7484aa,0x6ea6e483],[0x5cb0a9dc,0xbd41fbd4],[0x76f988da,0x831153b5],[0x983e5152,0xee66dfab],[0xa831c66d,0x2db43210],[0xb00327c8,0x98fb213f],[0xbf597fc7,0xbeef0ee4],[0xc6e00bf3,0x3da88fc2],[0xd5a79147,0x930aa725],[0x06ca6351,0xe003826f],[0x14292967,0x0a0e6e70],[0x27b70a85,0x46d22ffc],[0x2e1b2138,0x5c26c926],[0x4d2c6dfc,0x5ac42aed],[0x53380d13,0x9d95b3df],[0x650a7354,0x8baf63de],[0x766a0abb,0x3c77b2a8],[0x81c2c92e,0x47edaee6],[0x92722c85,0x1482353b],[0xa2bfe8a1,0x4cf10364],[0xa81a664b,0xbc423001],[0xc24b8b70,0xd0f89791],[0xc76c51a3,0x0654be30],[0xd192e819,0xd6ef5218],[0xd6990624,0x5565a910],[0xf40e3585,0x5771202a],[0x106aa070,0x32bbd1b8],[0x19a4c116,0xb8d2d0c8],[0x1e376c08,0x5141ab53],[0x2748774c,0xdf8eeb99],[0x34b0bcb5,0xe19b48a8],[0x391c0cb3,0xc5c95a63],[0x4ed8aa4a,0xe3418acb],[0x5b9cca4f,0x7763e373],[0x682e6ff3,0xd6b2b8a3],[0x748f82ee,0x5defb2fc],[0x78a5636f,0x43172f60],[0x84c87814,0xa1f0ab72],[0x8cc70208,0x1a6439ec],[0x90befffa,0x23631e28],[0xa4506ceb,0xde82bde9],[0xbef9a3f7,0xb2c67915],[0xc67178f2,0xe372532b],[0xca273ece,0xea26619c],[0xd186b8c7,0x21c0c207],[0xeada7dd6,0xcde0eb1e],[0xf57d4f7f,0xee6ed178],[0x06f067aa,0x72176fba],[0x0a637dc5,0xa2c898a6],[0x113f9804,0xbef90dae],[0x1b710b35,0x131c471b],[0x28db77f5,0x23047d84],[0x32caab7b,0x40c72493],[0x3c9ebe0a,0x15c9bebc],[0x431d67c4,0x9c100d4c],[0x4cc5d4be,0xcb3e42b6],[0x597f299c,0xfc657e2a],[0x5fcb6fab,0x3ad6faec],[0x6c44198c,0x4a475817]];
-  var K5L = [];
-  for (var ki = 0; ki < 80; ki++) K5L.push(new L(K5[ki][0], K5[ki][1]));
-
-  function initState(algo) {
-    if (algo === 'SHA-1') return { type: 'sha1', h: [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0], len: 0, buf: new Uint8Array(128), bufLen: 0 };
-    if (algo === 'SHA-256') return { type: 'sha256', h: [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19], len: 0, buf: new Uint8Array(128), bufLen: 0 };
-    if (algo === 'SHA-512') return { type: 'sha512', h: [new L(0x6a09e667,0xf3bcc908),new L(0xbb67ae85,0x84caa73b),new L(0x3c6ef372,0xfe94f82b),new L(0xa54ff53a,0x5f1d36f1),new L(0x510e527f,0xade682d1),new L(0x9b05688c,0x2b3e6c1f),new L(0x1f83d9ab,0xfb41bd6b),new L(0x5be0cd19,0x137e2179)], len: 0, buf: new Uint8Array(256), bufLen: 0 };
-    return null;
-  }
-
-  function processBlocks(st, u8arr) {
-    var blockSize = (st.type === 'sha512') ? 128 : 64;
-    var src, srcOff = 0, srcLen;
-    if (st.bufLen > 0) {
-      var combined = new Uint8Array(st.bufLen + u8arr.length);
-      combined.set(st.buf.subarray(0, st.bufLen), 0);
-      combined.set(u8arr, st.bufLen);
-      src = combined; srcLen = combined.length;
+    if (file.size <= CHUNK) {
+      buffer = await file.arrayBuffer();
     } else {
-      src = u8arr; srcLen = u8arr.length;
-    }
-    st.len += u8arr.length;
-    var isSha1 = st.type === 'sha1', isSha512 = st.type === 'sha512';
-    while (srcOff + blockSize <= srcLen) {
-      var block = src.subarray(srcOff, srcOff + blockSize);
-      if (isSha1) processSha1Block(st, block);
-      else if (isSha512) processSha512Block(st, block);
-      else processSha256Block(st, block);
-      srcOff += blockSize;
-    }
-    var rem = srcLen - srcOff;
-    if (rem > 0) {
-      st.buf.set(src.subarray(srcOff, srcLen), 0);
-    }
-    st.bufLen = rem;
-  }
+      buffer = new ArrayBuffer(file.size);
+      const dest = new Uint8Array(buffer);
+      let offset = 0;
 
-  function processSha512Block(st, block) {
-    var w = [], i;
-    var dv = new DataView(block.buffer, block.byteOffset, 128);
-    for (i = 0; i < 16; i++) {
-      w[i] = new L(dv.getInt32(i*8, false), dv.getInt32(i*8+4, false));
+      while (offset < file.size) {
+        if (mySession !== calcSession) return;
+        const end = Math.min(offset + CHUNK, file.size);
+        const chunk = await file.slice(offset, end).arrayBuffer();
+        dest.set(new Uint8Array(chunk), offset);
+        offset = end;
+        const pct = Math.round((offset / file.size) * 100);
+        setResult('\u23F3 Reading file... ' + pct + '%', 'warning');
+      }
     }
-    for (i = 16; i < 80; i++) {
-      var s0 = x64(x64(r64(w[i-15],1), r64(w[i-15],8)), s64(w[i-15],7));
-      var s1 = x64(x64(r64(w[i-2],19), r64(w[i-2],61)), s64(w[i-2],6));
-      w[i] = a64(a64(a64(w[i-16], s0), w[i-7]), s1);
-    }
-    var a=st.h[0],b=st.h[1],c=st.h[2],d=st.h[3],e=st.h[4],f=st.h[5],g=st.h[6],h=st.h[7];
-    for (i = 0; i < 80; i++) {
-      var S1 = x64(x64(r64(e,14), r64(e,18)), r64(e,41));
-      var ch = x64(n64(e,f), n64(inv64(e),g));
-      var t1 = a64(a64(a64(a64(h, S1), ch), K5L[i]), w[i]);
-      var S0 = x64(x64(r64(a,28), r64(a,34)), r64(a,39));
-      var maj = x64(x64(n64(a,b), n64(a,c)), n64(b,c));
-      var t2 = a64(S0, maj);
-      h=g; g=f; f=e; e=a64(d,t1); d=c; c=b; b=a; a=a64(t1,t2);
-    }
-    st.h[0]=a64(st.h[0],a); st.h[1]=a64(st.h[1],b); st.h[2]=a64(st.h[2],c); st.h[3]=a64(st.h[3],d);
-    st.h[4]=a64(st.h[4],e); st.h[5]=a64(st.h[5],f); st.h[6]=a64(st.h[6],g); st.h[7]=a64(st.h[7],h);
-  }
 
-  function processSha1Block(st, block) {
-    var w = w1, i;
-    var dv = new DataView(block.buffer, block.byteOffset, 64);
-    for (i = 0; i < 16; i++) w[i] = dv.getInt32(i << 2, false);
-    for (i = 16; i < 80; i++) { var t = w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16]; w[i] = (t << 1) | (t >>> 31); }
-    var a = st.h[0], b = st.h[1], c = st.h[2], d = st.h[3], e = st.h[4];
-    for (i = 0; i < 80; i++) {
-      var f, k;
-      if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5A827999; }
-      else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1; }
-      else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
-      else { f = b ^ c ^ d; k = 0xCA62C1D6; }
-      var tmp = (((a << 5) | (a >>> 27)) + f + e + k + w[i]) | 0;
-      e = d; d = c; c = (b << 30) | (b >>> 2); b = a; a = tmp;
-    }
-    st.h[0] = (st.h[0] + a) | 0; st.h[1] = (st.h[1] + b) | 0; st.h[2] = (st.h[2] + c) | 0; st.h[3] = (st.h[3] + d) | 0; st.h[4] = (st.h[4] + e) | 0;
-  }
-
-  function rr(v, n) { return (v >>> n) | (v << (32 - n)); }
-  var K256 = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
-
-  function processSha256Block(st, block) {
-    var w = w256, i;
-    var dv = new DataView(block.buffer, block.byteOffset, 64);
-    for (i = 0; i < 16; i++) w[i] = dv.getInt32(i << 2, false);
-    for (i = 16; i < 64; i++) {
-      var w15 = w[i-15], w2 = w[i-2];
-      w[i] = (w[i-16] + (((w15>>>7)|(w15<<25))^((w15>>>18)|(w15<<14))^(w15>>>3)) + w[i-7] + (((w2>>>17)|(w2<<15))^((w2>>>19)|(w2<<13))^(w2>>>10))) | 0;
-    }
-    var a=st.h[0],b=st.h[1],c=st.h[2],d=st.h[3],e=st.h[4],f=st.h[5],g=st.h[6],h=st.h[7];
-    for (i = 0; i < 64; i++) {
-      var t1 = (h + (((e>>>6)|(e<<26))^((e>>>11)|(e<<21))^((e>>>25)|(e<<7))) + ((e&f)^((~e)&g)) + K256[i] + w[i]) | 0;
-      var t2 = ((((a>>>2)|(a<<30))^((a>>>13)|(a<<19))^((a>>>22)|(a<<10))) + ((a&b)^(a&c)^(b&c))) | 0;
-      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
-    }
-    st.h[0]=(st.h[0]+a)|0; st.h[1]=(st.h[1]+b)|0; st.h[2]=(st.h[2]+c)|0; st.h[3]=(st.h[3]+d)|0;
-    st.h[4]=(st.h[4]+e)|0; st.h[5]=(st.h[5]+f)|0; st.h[6]=(st.h[6]+g)|0; st.h[7]=(st.h[7]+h)|0;
-  }
-
-  function padAndFinalize(st) {
-    if (st.type === 'sha512') return padAndFinalize512(st);
-    var blockSize = 64;
-    var totalBits = st.len * 8;
-    var pad = [];
-    for (var p = 0; p < st.bufLen; p++) pad.push(st.buf[p]);
-    pad.push(0x80);
-    while (pad.length % blockSize !== 56) pad.push(0);
-    pad.push(0, 0, 0, 0);
-    pad.push((totalBits >>> 24) & 0xff, (totalBits >>> 16) & 0xff, (totalBits >>> 8) & 0xff, totalBits & 0xff);
-    for (var off = 0; off < pad.length; off += blockSize) {
-      var blk = new Uint8Array(pad.slice(off, off + blockSize));
-      if (st.type === 'sha1') processSha1Block(st, blk);
-      else processSha256Block(st, blk);
-    }
-    var hex = '';
-    for (var i = 0; i < st.h.length; i++) {
-      var v = st.h[i];
-      hex += ('00' + ((v>>>24)&0xff).toString(16)).slice(-2);
-      hex += ('00' + ((v>>>16)&0xff).toString(16)).slice(-2);
-      hex += ('00' + ((v>>>8)&0xff).toString(16)).slice(-2);
-      hex += ('00' + (v&0xff).toString(16)).slice(-2);
-    }
-    return hex;
-  }
-
-  function padAndFinalize512(st) {
-    var totalBits = st.len * 8;
-    var pad = [];
-    for (var p = 0; p < st.bufLen; p++) pad.push(st.buf[p]);
-    pad.push(0x80);
-    while (pad.length % 128 !== 112) pad.push(0);
-    for (var p2 = 0; p2 < 12; p2++) pad.push(0);
-    pad.push((totalBits >>> 24) & 0xff, (totalBits >>> 16) & 0xff, (totalBits >>> 8) & 0xff, totalBits & 0xff);
-    for (var off = 0; off < pad.length; off += 128) {
-      processSha512Block(st, new Uint8Array(pad.slice(off, off + 128)));
-    }
-    var hex = '';
-    for (var i = 0; i < 8; i++) {
-      var hi = st.h[i].h, lo = st.h[i].l;
-      hex += ('00'+((hi>>>24)&0xff).toString(16)).slice(-2)+('00'+((hi>>>16)&0xff).toString(16)).slice(-2)+('00'+((hi>>>8)&0xff).toString(16)).slice(-2)+('00'+(hi&0xff).toString(16)).slice(-2);
-      hex += ('00'+((lo>>>24)&0xff).toString(16)).slice(-2)+('00'+((lo>>>16)&0xff).toString(16)).slice(-2)+('00'+((lo>>>8)&0xff).toString(16)).slice(-2)+('00'+(lo&0xff).toString(16)).slice(-2);
-    }
-    return hex;
-  }
-
-  function readNextChunk() {
     if (mySession !== calcSession) return;
-    if (offset >= file.size) {
-      var hashHex = padAndFinalize(state);
-      if (mySession !== calcSession) return;
-      hashOutput.textContent = hashHex;
-      verifyBtn.disabled = false;
-      verifyBtn.style.opacity = '1';
-      verifyBtn.style.cursor = 'pointer';
-      setResult('');
+
+    setResult('\u23F3 Hashing...', 'warning');
+    hashOutput.textContent = 'Hashing...';
+
+    await new Promise(r => setTimeout(r, 0));
+
+    const hashBuffer = await crypto.subtle.digest(currentAlgo, buffer);
+    if (mySession !== calcSession) return;
+
+    const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    hashOutput.textContent = hashHex;
+    verifyBtn.disabled = false;
+    verifyBtn.style.opacity = '1';
+    verifyBtn.style.cursor = 'pointer';
+    setResult('');
+  } catch (err) {
+    if (mySession !== calcSession) return;
+    setResult('\u26A0 Error: ' + err.message, 'warning');
+    hashOutput.textContent = 'Hash will appear after file upload';
+  } finally {
+    if (mySession === calcSession) {
       isCalculating = false;
-      activeReader = null;
       dropzone.style.pointerEvents = 'auto';
       dropzone.style.opacity = '1';
-      return;
     }
-    var end = Math.min(offset + chunkSize, file.size);
-    var blob = file.slice(offset, end);
-    activeReader = new FileReader();
-    activeReader.onload = function(e) {
-      if (mySession !== calcSession) return;
-      processBlocks(state, new Uint8Array(e.target.result));
-      offset = end;
-      var pct = Math.round((offset / file.size) * 100);
-      setResult('\u23F3 Calculating hash... ' + pct + '%', 'warning');
-      setTimeout(readNextChunk, 0);
-    };
-    activeReader.onerror = function() {
-      if (mySession !== calcSession) return;
-      isCalculating = false;
-      activeReader = null;
-      dropzone.style.pointerEvents = 'auto';
-      dropzone.style.opacity = '1';
-      setResult('\u26A0 Failed to read file. Please try again.', 'warning');
-      hashOutput.textContent = 'Hash will appear after file upload';
-    };
-    activeReader.readAsArrayBuffer(blob);
-  }
-
-  state = initState(currentAlgo);
-  readNextChunk();
-}
-
-/**
- * Validation
- */
-function validate(calculated) {
-  var expected = expectedHashInput.value.trim().toLowerCase();
-
-  if (!expected) return;
-
-  if (calculated === expected) {
-    setResult('\u2705 Hashes match!', 'match');
-  } else {
-    setResult('\u274C Hashes do not match.', 'mismatch');
   }
 }
 
-/**
- * Verify & Reset buttons
- */
-verifyBtn.addEventListener('click', function() {
-  var computed = hashOutput.textContent;
+verifyBtn.addEventListener('click', () => {
+  const computed = hashOutput.textContent;
   if (!computed || computed === 'Hash will appear after file upload') {
     setResult('\u26A0 Please upload a file first.', 'warning');
     return;
@@ -635,34 +215,31 @@ verifyBtn.addEventListener('click', function() {
     setResult('\u26A0 Please enter an expected hash.', 'warning');
     return;
   }
-  validate(computed);
+  if (computed === expectedHashInput.value.trim().toLowerCase()) {
+    setResult('\u2705 Hashes match!', 'match');
+  } else {
+    setResult('\u274C Hashes do not match.', 'mismatch');
+  }
 });
 
-resetBtn.addEventListener('click', function() {
-  var wasBusy = isCalculating;
+resetBtn.addEventListener('click', () => {
+  const wasBusy = isCalculating;
   calcSession++;
-  if (activeReader) {
-    activeReader.onload = null;
-    activeReader.onerror = null;
-    activeReader = null;
-  }
   isCalculating = false;
   dropzone.style.pointerEvents = 'auto';
   dropzone.style.opacity = '1';
   fileInput.value = '';
   expectedHashInput.value = '';
-  hashOutput.innerHTML = 'Hash will appear after file upload';
-  document.getElementById('fileName').innerHTML = '';
-  document.getElementById('dropText').innerHTML = 'Drag &amp; drop a file here, or click to browse';
+  hashOutput.textContent = 'Hash will appear after file upload';
+  document.getElementById('fileName').textContent = '';
+  document.getElementById('dropText').textContent = 'Drag & drop a file here, or click to browse';
   verifyBtn.disabled = true;
   verifyBtn.style.opacity = '0.5';
   verifyBtn.style.cursor = 'not-allowed';
   if (wasBusy) {
-    var resetSession = calcSession;
     setResult('\u26A0 Cancelling...', 'warning');
-    setTimeout(function() {
-      if (resetSession === calcSession) setResult('');
-    }, 800);
+    const rs = calcSession;
+    setTimeout(() => { if (rs === calcSession) setResult(''); }, 800);
   } else {
     setResult('');
   }
